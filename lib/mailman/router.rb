@@ -35,8 +35,9 @@ module Mailman
     # captured params. Named params are available from the +params+ helper. The
     # message is available from the +message+ helper.
     # @param [Mail::Message] the message to route.
-    def route(message)
+    def route(message, options = {})
       @message = message
+      @options = options
       result = nil
 
       if @bounce_block and message.respond_to?(:bounced?) and message.bounced?

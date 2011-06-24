@@ -12,10 +12,10 @@ module Mailman
     # Converts a raw email into a +Mail::Message+ instance, and passes it to the
     # router.
     # @param [String] message the message to process
-    def process(message)
+    def process(message, options = {})
       message = Mail.new(message)
-      Mailman.logger.info "Got new message from '#{message.from.first}' with subject '#{message.subject}'."
-      @router.route(message)
+      Mailman.logger.info "Got new message from '#{message.from.first}' with subject '#{message.subject}'. SERVER: #{options[:username]}@#{options[:server]}"
+      @router.route(message, options)
     end
 
     # Processes a +Maildir::Message+ instance.

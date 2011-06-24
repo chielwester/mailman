@@ -7,7 +7,9 @@ module Mailman
 
       # @return [Net::POP3] the POP3 connection
       attr_reader :connection
-
+      attr_reader :username
+      attr_reader :server
+      attr_reader :options
       # @param [Hash] options the receiver options
       # @option options [MessageProcessor] :processor the processor to pass new
       #   messages to
@@ -20,6 +22,8 @@ module Mailman
         @processor = options[:processor]
         @username = options[:username]
         @password = options[:password]
+        @server = options[:server]
+        @options = options
         @connection = Net::POP3.new(options[:server], options[:port])
         @connection.enable_ssl(OpenSSL::SSL::VERIFY_NONE) if options[:ssl]
       end
@@ -38,7 +42,7 @@ module Mailman
       # deleting them.
       def get_messages
         @connection.each_mail do |message|
-          @processor.process(message.pop)
+          @processor.process(message.pop, @options)
         end
         @connection.delete_all
       end

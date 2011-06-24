@@ -40,27 +40,38 @@ module Mailman
       if !Mailman.config.ignore_stdin && $stdin.fcntl(Fcntl::F_GETFL, 0) == 0 # we have stdin
         Mailman.logger.debug "Processing message from STDIN."
         @processor.process($stdin.read)
-      elsif Mailman.config.pop3
-        options = {:processor => @processor}.merge(Mailman.config.pop3)
-        Mailman.logger.info "POP3 receiver enabled (#{options[:username]}@#{options[:server]})."
+      elsif pop3configurations = Mailman.config.pop3
+        if pop3configurations.is_a?(Hash)
+          pop3configurations = [pop3_configurations]
+        end
+
+        connections = pop3configurations.collect{|pop3configuration|
+          Receiver::POP3.new({:processor => @processor}.merge(pop3configuration))
+        }
+
+        Mailman.logger.info "POP3 receiver enabled on #{connections.size} connections"
+        # Mailman.logger.info "POP3 receiver enabled (#{options[:username]}@#{options[:server]})."
         if Mailman.config.poll_interval > 0 # we should poll
           polling = true
           Mailman.logger.info "Polling enabled. Checking every #{Mailman.config.poll_interval} seconds."
-        else 
+        else
           polling = false
           Mailman.logger.info 'Polling disabled. Checking for messages once.'
         end
 
-        connection = Receiver::POP3.new(options)
         loop do
-          begin
-            connection.connect
-            connection.get_messages
-            connection.disconnect
-          rescue SystemCallError => e
-            Mailman.logger.error e.message
-          end
+          connections.each do |connection|
+            Mailman.logger.info "Checking for new messages on #{connection.username}@#{connection.server}"
 
+            begin
+              connection.connect
+              connection.get_messages
+              connection.disconnect
+            rescue SystemCallError => e
+              Mailman.logger.error e.message
+            end
+
+          end
           break if !polling
           sleep Mailman.config.poll_interval
         end

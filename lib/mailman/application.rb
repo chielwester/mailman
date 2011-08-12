@@ -70,12 +70,39 @@ module Mailman
             rescue SystemCallError => e
               Mailman.logger.error e.message
             end
-
           end
           break if !polling
           sleep Mailman.config.poll_interval
         end
+      elsif imap_configurations = Mailman.config.imap
+        if imap_configurations.is_a?(Hash)
+          imap_configurations = [imap_configurations]
+        end
+        Mailman.logger.info "IMAP configurations #{imap_configurations.inspect}."
+        connections = imap_configurations.collect{|imap_configuration|
+          Receiver::IMAP.new({:processor => @processor}.merge(imap_configuration))
+        }
 
+        Mailman.logger.info "IMAP receiver enabled on #{connections.size}."
+        if Mailman.config.poll_interval > 0
+          polling = true
+          Mailman.logger.info "Polling enabled. Checking every #{Mailman.config.poll_interval} seconds."
+        else
+          polling = false
+          Mailman.logger.info 'Polling disabled. Checking for messages once.'
+        end
+
+        loop do
+          connections.each do |connection|
+            Mailman.logger.info "Checking for new messages on #{connection.username}@#{connection.server}"
+
+            connection.connect
+            connection.get_messages
+            connection.disconnect
+          end
+          break if !polling
+          sleep Mailman.config.poll_interval
+        end
       elsif Mailman.config.maildir
         require 'maildir'
         require 'fssm'
@@ -96,8 +123,10 @@ module Mailman
             @processor.process_maildir_message(message)
           }
         end
+      elsif $stdin.fcntl(Fcntl::F_GETFL, 0) == 0 # we have stdin
+        Mailman.logger.debug "Processing message from STDIN."
+        @processor.process($stdin.read)
       end
     end
-
   end
 end
